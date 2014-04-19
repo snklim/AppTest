@@ -25,6 +25,7 @@ namespace AppTest.MainLogic
             Console.WriteLine("New subscription type: {0}", type);
             CreateListenerIfNeeded(type);
             _listeners[type].Subscribe(r => {
+                Console.WriteLine("Record sent at {3}, id: {0}, type: {1}, value: {2}", r.Id, r.Type, r.Value, DateTime.Now);
                 try
                 {
                     clientChannel.Notify(r);
@@ -34,7 +35,6 @@ namespace AppTest.MainLogic
                     Console.WriteLine("{0}, id: {1}, type: {2}, value: {3}", ex.Message, r.Id, r.Type, r.Value);
                     return false;
                 }
-                Console.WriteLine("Record sent, id: {0}, type: {1}, value: {2}", r.Id, r.Type, r.Value);
                 return true;
             });
         }

@@ -51,35 +51,54 @@ namespace AppTest.MainLogic
                 _waiter.WaitOne();
                 if (_buffer.Count > 0 && _subscribers.Count > 0)
                 {
+                    Func<Record, bool>[] copySubs = null;
+                    Record[] copyBuff = null;
+
                     lock (_locker)
                     {
-                        
-                        List<Record> processedRecords = new List<Record>();
-                        foreach (Record r in _buffer)
-                        {
-                            while (_subscribers.Count > 0)
-                            {
-                                _currentSubscriber = _currentSubscriber % _subscribers.Count;
+                        copySubs = new Func<Record, bool>[_subscribers.Count];
+                        _subscribers.CopyTo(copySubs);
 
-                                if (_subscribers[_currentSubscriber](r))
-                                {
-                                    processedRecords.Add(r);
-                                    break;
-                                }
-                                else
-                                {
-                                    _subscribers.RemoveAt(_currentSubscriber);
-                                }
-                            }
-                            if (_subscribers.Count == 0)
+                        copyBuff = new Record[_buffer.Count];
+                        _buffer.CopyTo(copyBuff);
+                    }
+
+                    List<Record> processedRecords = new List<Record>();
+                    List<Func<Record, bool>> subsToRemove = new List<Func<Record, bool>>();
+                    foreach (Record r in copyBuff)
+                    {
+                        while (copySubs.Length > subsToRemove.Count)
+                        {
+                            _currentSubscriber = _currentSubscriber % copySubs.Length;
+
+                            if (subsToRemove.Contains(copySubs[_currentSubscriber]))
                             {
+                                _currentSubscriber = (_currentSubscriber + 1) % copySubs.Length;
+                                continue;
+                            }
+
+                            if (copySubs[_currentSubscriber](r))
+                            {
+                                processedRecords.Add(r);
                                 break;
                             }
-                            _currentSubscriber = (_currentSubscriber + 1) % _subscribers.Count;
+                            else
+                            {
+                                subsToRemove.Add(copySubs[_currentSubscriber]);
+                            }
                         }
+                        _currentSubscriber = (_currentSubscriber + 1) % copySubs.Length;
+                    }
+
+                    lock (_locker)
+                    {
                         foreach (Record r in processedRecords)
                         {
                             _buffer.Remove(r);
+                        }
+                        foreach (Func<Record, bool> f in subsToRemove)
+                        {
+                            _subscribers.Remove(f);
                         }
                     }
                 }

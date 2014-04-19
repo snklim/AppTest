@@ -24,14 +24,23 @@ namespace AppTest.Client
             }
 
             string type = null;
+            string mode = null;
 
-            Regex regex = new Regex(@"\s*type\s*=\s*(\w+)\s*");
+            Regex regex = new Regex(@"\s*(\w+)\s*=\s*(\w+)\s*");
 
             foreach (string a in args)
             {
                 if (regex.IsMatch(a))
                 {
-                    type = regex.Match(a).Groups[1].Value;
+                    Match m = regex.Match(a);
+                    if (m.Groups[1].Value == "type")
+                    {
+                        type = m.Groups[2].Value;
+                    }
+                    else if (m.Groups[1].Value == "mode")
+                    {
+                        mode = m.Groups[2].Value;
+                    }
                 }
             }
 
@@ -69,7 +78,7 @@ namespace AppTest.Client
                     object obj = Activator.GetObject(typeof(FileProcessor), serverHostUrl);
                     FileProcessor fileProcessor = (FileProcessor)obj;
 
-                    fileProcessor.Subscribe(type, new ClientChannel());
+                    fileProcessor.Subscribe(type, new ClientChannel() { IsSlowMode = string.Equals(mode, "slow", StringComparison.CurrentCultureIgnoreCase) });
 
                     break;
                 }
