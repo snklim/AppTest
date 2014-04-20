@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ namespace AppTest.MainLogic
     class Listener
     {
         private string _type;
-        private List<Func<Record, bool>> _subscribers = new List<Func<Record, bool>>();
+        private List<ClientWrapper> _subscribers = new List<ClientWrapper>();
         private List<Record> _buffer = new List<Record>();
         private int _currentSubscriber = 0;
         private Thread _workerThread = null;
@@ -34,11 +35,11 @@ namespace AppTest.MainLogic
             }
         }
 
-        public void Subscribe(Func<Record, bool> action)
+        public void Subscribe(ClientChannel channel)
         {
             lock (_locker)
             {
-                _subscribers.Add(action);
+                _subscribers.Add(new ClientWrapper(channel, this));
                 _waiter.Set();
             }
         }
@@ -51,54 +52,30 @@ namespace AppTest.MainLogic
                 _waiter.WaitOne();
                 if (_buffer.Count > 0 && _subscribers.Count > 0)
                 {
-                    Func<Record, bool>[] copySubs = null;
-                    Record[] copyBuff = null;
-
                     lock (_locker)
                     {
-                        copySubs = new Func<Record, bool>[_subscribers.Count];
-                        _subscribers.CopyTo(copySubs);
-
-                        copyBuff = new Record[_buffer.Count];
-                        _buffer.CopyTo(copyBuff);
-                    }
-
-                    List<Record> processedRecords = new List<Record>();
-                    List<Func<Record, bool>> subsToRemove = new List<Func<Record, bool>>();
-                    foreach (Record r in copyBuff)
-                    {
-                        while (copySubs.Length > subsToRemove.Count)
+                        List<Record> recordsToRemove = new List<Record>();
+                        foreach (Record r in _buffer)
                         {
-                            _currentSubscriber = _currentSubscriber % copySubs.Length;
-
-                            if (subsToRemove.Contains(copySubs[_currentSubscriber]))
+                            if (_subscribers.Count == 0)
                             {
-                                _currentSubscriber = (_currentSubscriber + 1) % copySubs.Length;
-                                continue;
-                            }
-
-                            if (copySubs[_currentSubscriber](r))
-                            {
-                                processedRecords.Add(r);
                                 break;
                             }
-                            else
-                            {
-                                subsToRemove.Add(copySubs[_currentSubscriber]);
-                            }
-                        }
-                        _currentSubscriber = (_currentSubscriber + 1) % copySubs.Length;
-                    }
 
-                    lock (_locker)
-                    {
-                        foreach (Record r in processedRecords)
+                            _currentSubscriber = _currentSubscriber % _subscribers.Count;
+
+                            var clientWrapper = _subscribers[_currentSubscriber];
+                            clientWrapper.Notify(r);
+
+                            _subscribers.RemoveAt(_currentSubscriber);
+
+                            recordsToRemove.Add(r);
+
+                            _currentSubscriber++;
+                        }
+                        foreach (Record r in recordsToRemove)
                         {
                             _buffer.Remove(r);
-                        }
-                        foreach (Func<Record, bool> f in subsToRemove)
-                        {
-                            _subscribers.Remove(f);
                         }
                     }
                 }

@@ -45,6 +45,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ClientChannel.cs" />
+    <Compile Include="ClientWrapper.cs" />
     <Compile Include="FileProcessInfo.cs" />
     <Compile Include="FileProcessor.cs" />
     <Compile Include="FileWatcher.cs" />
